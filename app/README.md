@@ -5,3 +5,8 @@ Launch the app:
 cargo run
 ```
 
+Generate web view
+
+```bash
+dx build --platform web
+```
