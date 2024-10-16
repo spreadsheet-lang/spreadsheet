@@ -14,6 +14,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
     - name: install dx
       run: cargo install dioxus-cli@0.6.0-alpha.3
     - name: install dependencies
