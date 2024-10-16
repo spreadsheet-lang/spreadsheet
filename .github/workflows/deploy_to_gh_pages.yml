@@ -1,0 +1,30 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: install dx
+      run: cargo install dioxus-cli@0.6.0-alpha.3
+    - name: Run tests
+      run: cd app && dx build --release --platform web
+    - name: GitHub Pages
+      if: github.event_name != 'pull_request'
+      uses: crazy-max/ghaction-github-pages@v2.5.0
+      with:
+        # Build directory to deploy
+        build_dir: app/dist
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
