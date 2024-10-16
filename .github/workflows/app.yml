@@ -1,4 +1,4 @@
-name: Run language tests
+name: Build desktop app
 
 on:
   push:
@@ -16,5 +16,5 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Run lang tests
-      run: cargo test --verbose --manifest-path lang/Cargo.toml
+    - name: Build app
+      run: cargo check --verbose --manifest-path app/Cargo.toml
