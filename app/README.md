@@ -1,5 +1,5 @@
 # Development
-Launch the Dioxus app:
+Launch the app:
 
 ```bash
 cargo run
