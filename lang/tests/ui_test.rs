@@ -62,7 +62,7 @@ fn config() -> Config {
         root_dir: "tests/raw_dumps".into(),
         program: CommandBuilder::cmd(cargo_build("raw_dump")),
         output_conflict_handling: error_on_output_conflict,
-        bless_command: None,
+        bless_command: Some("cargo test -- -- --bless".into()),
         out_dir: std::env::var_os("CARGO_TARGET_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| std::env::current_dir().unwrap().join("target"))
@@ -76,8 +76,8 @@ fn config() -> Config {
         comment_defaults,
         comment_start: "//",
         custom_comments: Default::default(),
-        diagnostic_extractor: |_, _| Diagnostics {
-            rendered: vec![],
+        diagnostic_extractor: |_, rendered| Diagnostics {
+            rendered: rendered.to_owned(),
             messages: vec![],
             messages_from_unknown_file_or_line: vec![],
         },
