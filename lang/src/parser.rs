@@ -19,6 +19,7 @@ mod syntax {
 
         // composite nodes
         ASSIGN,
+        STATEMENT,
         // this MUST come last in the enum; we depend on it for memory safety
         ROOT,
     }
@@ -54,21 +55,20 @@ pub use syntax::*;
 // use chumsky::extension::v1::{Ext, ExtParser};
 use chumsky::prelude::*;
 use rowan::{GreenNode, GreenNodeBuilder};
+use text::whitespace;
 use SyntaxKind::*;
 
 type CSTError<'a> = Simple<'a, char>;
-type CSTExtra<'a> = extra::Full<CSTError<'a>, (), ()>;
-// trait CSTParser<'a, O = ()> = chumsky::Parser<'a, &'a str, O, extra::Default>;
-trait CSTParser<'a, O = ()> =
-    chumsky::Parser<'a, &'a str, O, extra::Full<CSTError<'a>, GreenNodeBuilder<'static>, ()>>;
+type CSTExtra<'a> = extra::Full<CSTError<'a>, GreenNodeBuilder<'a>, ()>;
+trait CSTParser<'a, O = ()> = chumsky::Parser<'a, &'a str, O, CSTExtra<'a>>;
 
 #[derive(Debug)]
-pub struct Parse {
-    root: GreenNode,
-    errors: Vec<CSTError<'static>>,
+pub struct Parse<'a> {
+    pub root: GreenNode,
+    pub errors: Vec<CSTError<'a>>,
 }
 
-impl Parse {
+impl Parse<'_> {
     /// Return a red tree based on the green tree we parsed, ignoring errors.
     ///
     /// Unlike a green tree, this has parent pointers, offsets, and identity semantics.
@@ -82,13 +82,10 @@ impl Parse {
     }
 }
 
-pub fn parse(text: String) -> Parse {
+pub fn parse(text: &str) -> Parse {
     let mut builder = GreenNodeBuilder::new();
     builder.start_node(ROOT.into());
-    let errors = parser()
-        // TODO: lol. lmao.
-        .parse_with_state(text.leak(), &mut builder)
-        .into_errors();
+    let errors = parser().parse_with_state(text, &mut builder).into_errors();
     builder.finish_node();
     Parse {
         root: builder.finish(),
@@ -96,75 +93,60 @@ pub fn parse(text: String) -> Parse {
     }
 }
 
-// struct ParseBuilder {
-//     builder: GreenNodeBuilder<'static>,
-// }
-
-// trait AsStr {
-//     fn as_str(&self) -> &str;
-// }
-
-// impl AsStr for u8 {
-//     fn as_str(&self) -> &str {
-//         std::str::from_utf8(std::slice::from_ref(self)).unwrap()
-//     }
-// }
-
-// impl AsStr for str {
-//     fn as_str(&self) -> &str {
-//         self
-//     }
-// }
-
-// impl ParseBuilder {
-
-// struct Leaf_<P> {
-//     parser: P,
-//     kind: SyntaxKind,
-// }
-
-// impl<'a, P: CSTParser<'a>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for Leaf_<P> {
-//     fn parse(
-//         &self,
-//         _: &mut chumsky::input::InputRef<'a, '_, &'a str, CSTExtra<'a>>,
-//     ) -> Result<(), CSTError<'a>> {
-//         // self.parser.map_with(move |s, extra| {
-//             let builder = extra.state();
-//             builder.token(self.kind.into(), s);
-//         // })
-//     }
-// }
-
-// type Leaf<P> = Ext<Leaf_<P>>;
-
-// // fn leaf(k
-
-// fn leaf<'a>(parser: impl CSTParser<'a, &'a str>, kind: SyntaxKind) -> impl CSTParser<'static, ()> {
-//     Ext(Leaf_ { parser, kind })
-// }
-fn leaf<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'static, ()> {
+fn leaf<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
     parser.map_with(move |_, extra| {
         let slice = extra.slice();
         extra.state().token(kind.into(), slice);
     })
 }
-// // }
+
+fn node<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
+    empty::<_, CSTExtra<'a>>()
+        .map_with(move |_, extra| {
+            extra.state().start_node(kind.into());
+        })
+        .then(parser)
+        .map_with(|_, extra| extra.state().finish_node())
+}
+
+macro_rules! leafs {
+    ($(fn $fn:ident: $name:ident = $parser:expr);* $(;)? ) => {
+        $( fn $fn<'a>() -> impl CSTParser<'a, ()> {
+            leaf($parser, $name)
+        } )*
+    };
+}
+
+leafs! {
+    fn eq: EQ = just('=');
+    fn nl: NEWLINE = just('\n');
+    fn int: INT = text::digits(10);
+    // leaf(whitespace(), WHITESPACE),
+}
 
 #[rustfmt::skip]
-fn parser() -> impl CSTParser<'static> {
-    choice((
-        leaf(just('\n'), NEWLINE),
-        leaf(just('='), EQ),
-        leaf(text::digits(10), INT),
-    )).then_ignore(end())
+fn parser<'a>() -> impl CSTParser<'a> {
+    statement()
 }
 
 // AAA123
-fn cell<'a>() -> impl CSTParser<'a, &'a str> {
-    any()
-        .filter(char::is_ascii_alphabetic)
-        .repeated()
-        .at_least(1)
-        .then(any().filter(char::is_ascii_digit).repeated().at_least(1))
-        .to_slice()
+fn cell<'a>() -> impl CSTParser<'a, ()> {
+    leaf(
+        any()
+            .filter(char::is_ascii_alphabetic)
+            .repeated()
+            .at_least(1)
+            .then(any().filter(char::is_ascii_digit).repeated().at_least(1))
+            .to_slice(),
+        CELL,
+    )
+}
+
+// A1 = 3
+fn assign<'a>() -> impl CSTParser<'a> {
+    node(cell().then(eq()).then(int()), ASSIGN)
+}
+
+fn statement<'a>() -> impl CSTParser<'a> {
+    node(assign().then(nl()), STATEMENT)
 }
