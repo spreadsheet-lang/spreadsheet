@@ -49,6 +49,8 @@ mod syntax {
     pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
 }
 
+use std::fmt;
+
 pub use syntax::*;
 
 // now, we can do our actual parsing.
@@ -62,10 +64,18 @@ type CSTExtra<'a> = extra::Full<CSTError<'a>, GreenNodeBuilder<'a>, ()>;
 trait CSTParser<'a, O = ()>: chumsky::Parser<'a, &'a str, O, CSTExtra<'a>> {}
 impl<'a, O, T> CSTParser<'a, O> for T where T: chumsky::Parser<'a, &'a str, O, CSTExtra<'a>> {}
 
-#[derive(Debug)]
 pub struct Parse<'a> {
     pub root: GreenNode,
     pub errors: Vec<CSTError<'a>>,
+}
+
+impl<'a> fmt::Debug for Parse<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.errors.is_empty() {
+            writeln!(f, "error: {:?}", self.errors)?;
+        }
+        Self::dbg(f, self.red_tree(), 0)
+    }
 }
 
 impl Parse<'_> {
@@ -80,6 +90,19 @@ impl Parse<'_> {
     pub fn red_tree(&self) -> SyntaxNode {
         SyntaxNode::new_root(self.root.clone())
     }
+
+    fn dbg(f: &mut fmt::Formatter, node: SyntaxNode, indent: usize) -> fmt::Result {
+        writeln!(f, "{}{:?}", " ".repeat(indent * 2), node)?;
+        for child in node.children_with_tokens() {
+            match child {
+                rowan::NodeOrToken::Node(n) => Self::dbg(f, n, indent + 1)?,
+                rowan::NodeOrToken::Token(t) => {
+                    writeln!(f, "{}{:?}", " ".repeat((indent + 1) * 2), t)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 pub fn parse(text: &str) -> Parse {
@@ -87,37 +110,46 @@ pub fn parse(text: &str) -> Parse {
     builder.start_node(ROOT.into());
     let errors = parser().parse_with_state(text, &mut builder).into_errors();
     builder.finish_node();
+    dbg!(&builder);
     Parse {
         root: builder.finish(),
         errors,
     }
 }
 
-fn leaf<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
-    let ws = any::<_, CSTExtra<'a>>()
+fn ws<'a>() -> impl CSTParser<'a> {
+    any::<_, CSTExtra<'a>>()
         .filter(|c: &char| *c != '\n' && c.is_whitespace())
         .repeated()
         .map_with(|_, extra| {
             let slice: &str = extra.slice();
             if !slice.is_empty() {
+                println!("ws '{slice}'");
                 extra.state().token(WHITESPACE.into(), slice);
             }
-        });
-    ws.clone()
-        .then(parser.map_with(move |_, extra| {
-            let slice = extra.slice();
-            extra.state().token(kind.into(), slice);
-        }))
-        .map(|_| ())
+        })
+}
+
+fn leaf<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
+    ws().then(parser.map_with(move |_, extra| {
+        println!("leaf {kind:?}");
+        let slice = extra.slice();
+        extra.state().token(kind.into(), slice);
+    }))
+    .map(|_| ())
 }
 
 fn node<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
     empty::<_, CSTExtra<'a>>()
         .map_with(move |_, extra| {
+            println!("start node {kind:?}");
             extra.state().start_node(kind.into());
         })
         .then(parser)
-        .map_with(|_, extra| extra.state().finish_node())
+        .map_with(move |_, extra| {
+            println!("finish node {kind:?}");
+            extra.state().finish_node()
+        })
 }
 
 macro_rules! leafs {
@@ -132,12 +164,14 @@ leafs! {
     fn eq: EQ = just('=');
     fn nl: NEWLINE = just('\n');
     fn int: INT = text::digits(10);
-    // leaf(whitespace(), WHITESPACE),
 }
 
 #[rustfmt::skip]
 fn parser<'a>() -> impl CSTParser<'a> {
-    statement()
+    // choice((
+        // ws().then(nl()).map(|_| ()),
+    // ))
+    statement().repeated().at_least(1).count().map(|_| ()).then_ignore(end())
 }
 
 // AAA123

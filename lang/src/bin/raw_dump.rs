@@ -4,19 +4,6 @@ fn main() -> Result<(), io::Error> {
     let path = std::env::args().nth(1).unwrap();
     let input = std::fs::read_to_string(path)?;
     let output = lang::parse(&input);
-    if !output.errors.is_empty() {
-        println!("error: {:?}", output.errors);
-    }
-    dbg(output.red_tree(), 0);
+    println!("{output:?}");
     Ok(())
-}
-
-fn dbg(node: lang::SyntaxNode, indent: usize) {
-    println!("{}{:?}", " ".repeat(indent * 2), node);
-    for child in node.children_with_tokens() {
-        match child {
-            rowan::NodeOrToken::Node(n) => dbg(n, indent + 1),
-            rowan::NodeOrToken::Token(t) => println!("{}{:?}", " ".repeat((indent + 1) * 2), t),
-        }
-    }
 }
