@@ -18,6 +18,9 @@ asset_dir = "assets"
 # HTML title tag content
 title = "spreadsheet"
 
+# Make sure gh pages doesn't strip the repo name
+base_path = "spreadsheet"
+
 [web.watcher]
 
 # when watcher trigger, regenerate the `index.html`
