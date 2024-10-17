@@ -4,7 +4,9 @@ fn main() -> Result<(), io::Error> {
     let path = std::env::args().nth(1).unwrap();
     let input = std::fs::read_to_string(path)?;
     let output = lang::parse(&input);
-    assert!(output.errors.is_empty());
+    if !output.errors.is_empty() {
+        println!("error: {:?}", output.errors);
+    }
     dbg(output.red_tree(), 0);
     Ok(())
 }
