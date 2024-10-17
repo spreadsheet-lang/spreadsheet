@@ -60,7 +60,8 @@ use SyntaxKind::*;
 
 type CSTError<'a> = Simple<'a, char>;
 type CSTExtra<'a> = extra::Full<CSTError<'a>, GreenNodeBuilder<'a>, ()>;
-trait CSTParser<'a, O = ()> = chumsky::Parser<'a, &'a str, O, CSTExtra<'a>>;
+trait CSTParser<'a, O = ()>: chumsky::Parser<'a, &'a str, O, CSTExtra<'a>> {}
+impl<'a, O, T> CSTParser<'a, O> for T where T: chumsky::Parser<'a, &'a str, O, CSTExtra<'a>> {}
 
 #[derive(Debug)]
 pub struct Parse<'a> {
