@@ -49,13 +49,17 @@ mod syntax {
     pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
 }
 
-use std::fmt;
+use std::{fmt, marker::PhantomData};
 
 pub use syntax::*;
 
 // now, we can do our actual parsing.
 // use chumsky::extension::v1::{Ext, ExtParser};
-use chumsky::prelude::*;
+use chumsky::{
+    extension::v1::{Ext, ExtParser},
+    input::InputRef,
+    prelude::*,
+};
 use rowan::{GreenNode, GreenNodeBuilder};
 use SyntaxKind::*;
 
@@ -110,7 +114,6 @@ pub fn parse(text: &str) -> Parse {
     builder.start_node(ROOT.into());
     let errors = parser().parse_with_state(text, &mut builder).into_errors();
     builder.finish_node();
-    dbg!(&builder);
     Parse {
         root: builder.finish(),
         errors,
@@ -124,7 +127,7 @@ fn ws<'a>() -> impl CSTParser<'a> {
         .map_with(|_, extra| {
             let slice: &str = extra.slice();
             if !slice.is_empty() {
-                println!("ws '{slice}'");
+                // println!("ws '{slice}'");
                 extra.state().token(WHITESPACE.into(), slice);
             }
         })
@@ -132,24 +135,44 @@ fn ws<'a>() -> impl CSTParser<'a> {
 
 fn leaf<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
     ws().then(parser.map_with(move |_, extra| {
-        println!("leaf {kind:?}");
+        // println!("leaf {kind:?}");
         let slice = extra.slice();
         extra.state().token(kind.into(), slice);
     }))
     .map(|_| ())
 }
 
-fn node<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
-    empty::<_, CSTExtra<'a>>()
-        .map_with(move |_, extra| {
-            println!("start node {kind:?}");
-            extra.state().start_node(kind.into());
-        })
-        .then(parser)
-        .map_with(move |_, extra| {
-            println!("finish node {kind:?}");
-            extra.state().finish_node()
-        })
+struct RowanNode_<'a, O, P: CSTParser<'a, O>> {
+    parser: P,
+    kind: SyntaxKind,
+    _marker: PhantomData<(&'a str, fn() -> O)>,
+}
+
+type RowanNode<'a, O, P> = Ext<RowanNode_<'a, O, P>>;
+
+/// This needs to be an extension, not a combinator using `map_with`, because map_with can be evaluated multiple times in the case of backtracking.
+impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for RowanNode_<'a, O, P> {
+    fn parse(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
+        let checkpoint = inp.state().checkpoint();
+
+        inp.parse(&self.parser)?;
+        let builder = inp.state();
+        builder.start_node_at(checkpoint, self.kind.into());
+        builder.finish_node();
+        Ok(())
+    }
+
+    fn check(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
+        inp.check(&self.parser)
+    }
+}
+
+fn node<'a, O, P: CSTParser<'a, O>>(parser: P, kind: SyntaxKind) -> RowanNode<'a, O, P> {
+    Ext(RowanNode_ {
+        parser,
+        kind,
+        _marker: PhantomData,
+    })
 }
 
 macro_rules! leafs {
