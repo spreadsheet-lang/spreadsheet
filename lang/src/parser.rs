@@ -111,9 +111,7 @@ impl Parse<'_> {
 
 pub fn parse(text: &str) -> Parse {
     let mut builder = GreenNodeBuilder::new();
-    builder.start_node(ROOT.into());
     let errors = parser().parse_with_state(text, &mut builder).into_errors();
-    builder.finish_node();
     Parse {
         root: builder.finish(),
         errors,
@@ -163,11 +161,17 @@ impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for Ro
     }
 
     fn check(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
-        inp.check(&self.parser)
+        let checkpoint = inp.state().checkpoint();
+
+        inp.check(&self.parser)?;
+        let builder = inp.state();
+        builder.start_node_at(checkpoint, self.kind.into());
+        builder.finish_node();
+        Ok(())
     }
 }
 
-fn node<'a, O, P: CSTParser<'a, O>>(parser: P, kind: SyntaxKind) -> RowanNode<'a, O, P> {
+fn node<'a, O, P: CSTParser<'a, O>>(kind: SyntaxKind, parser: P) -> RowanNode<'a, O, P> {
     Ext(RowanNode_ {
         parser,
         kind,
@@ -191,10 +195,11 @@ leafs! {
 
 #[rustfmt::skip]
 fn parser<'a>() -> impl CSTParser<'a> {
-    // choice((
-        // ws().then(nl()).map(|_| ()),
-    // ))
-    statement().repeated().at_least(1).count().map(|_| ()).then_ignore(end())
+    node(ROOT, choice((
+        ws().then(nl()).map(|_| ()),
+        statement(),
+    ))
+    .repeated().count().map(|_| ()).then_ignore(end()))
 }
 
 // AAA123
@@ -212,9 +217,9 @@ fn cell<'a>() -> impl CSTParser<'a, ()> {
 
 // A1 = 3
 fn assign<'a>() -> impl CSTParser<'a> {
-    node(cell().then(eq()).then(int()), ASSIGN)
+    node(ASSIGN, cell().then(eq()).then(int()))
 }
 
 fn statement<'a>() -> impl CSTParser<'a> {
-    node(assign().then(nl()), STATEMENT)
+    node(STATEMENT, assign().then(nl()))
 }
