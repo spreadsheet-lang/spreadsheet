@@ -1,0 +1,7 @@
+ROOT@0..5
+  STATEMENT@0..5
+    ASSIGN@0..4
+      CELL@0..2 "A1"
+      EQ@2..3 "="
+      INT@3..4 "0"
+    NEWLINE@4..5 "\n"

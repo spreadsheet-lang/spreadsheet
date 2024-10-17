@@ -1,0 +1,20 @@
+//@ only-host: never
+D1=0
+
+A1="apple"
+A2 = "banana"
+A3 = "cherry"
+
+B1 = enum A1:A3
+alias fruits = B1
+
+type C1:C4 = $fruits
+type D[:] = int
+C1 = "apple"
+C2 = "banana"
+C3 = "apple"
+C4 = "apple"
+D1 = 3
+D1 = 4
+D1 = 2
+D1 = 0
