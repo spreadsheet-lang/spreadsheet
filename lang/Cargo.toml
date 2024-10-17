@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chumsky = { version = "1.0.0-alpha.7", features = ["extension"] }
+rowan = "0.15.16"
 
 [dev-dependencies]
 ctrlc = "3.4.5"
