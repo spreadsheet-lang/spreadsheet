@@ -55,7 +55,6 @@ pub use syntax::*;
 // use chumsky::extension::v1::{Ext, ExtParser};
 use chumsky::prelude::*;
 use rowan::{GreenNode, GreenNodeBuilder};
-use text::whitespace;
 use SyntaxKind::*;
 
 type CSTError<'a> = Simple<'a, char>;
@@ -95,10 +94,16 @@ pub fn parse(text: &str) -> Parse {
 }
 
 fn leaf<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
-    parser.map_with(move |_, extra| {
+    let ws = any::<_, CSTExtra<'a>>()
+        .filter(|c: &char| *c != '\n' && c.is_whitespace())
+        .map_with(|_, extra| {
+            let slice = extra.slice();
+            extra.state().token(WHITESPACE.into(), slice);
+        });
+    ws.clone().then(parser.map_with(move |_, extra| {
         let slice = extra.slice();
         extra.state().token(kind.into(), slice);
-    })
+    }))
 }
 
 fn node<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
