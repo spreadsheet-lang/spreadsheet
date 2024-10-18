@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chumsky = { version = "1.0.0-alpha.7", features = ["extension"] }
-rowan = "0.15.16"
+# chumsky = { version = "1.0.0-alpha.7", features = ["extension"] }
+chumsky = { git = "https://github.com/jyn514/chumsky", rev = "a43a0dfe7a44de064b5dc4db15facc26e3009c37", version = "1.0.0-alpha.7", features = ["extension"] }
+# rowan = "0.15.16"
+cstree = { git = "https://github.com/jyn514/cstree", rev = "6116e41806e7fce57e1cc078c19d117c3e0b5075", version = "0.12" }
 
 [dev-dependencies]
 ctrlc = "3.4.5"

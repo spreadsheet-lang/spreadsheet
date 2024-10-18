@@ -7,7 +7,9 @@
 
 // separate mod to encapsulate the unsafety
 mod syntax {
-    #[repr(u16)]
+    use cstree::RawSyntaxKind;
+
+    #[repr(u32)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[allow(non_camel_case_types)]
     pub enum SyntaxKind {
@@ -31,33 +33,39 @@ mod syntax {
         ROOT,
     }
 
-    impl From<SyntaxKind> for rowan::SyntaxKind {
+    impl From<SyntaxKind> for RawSyntaxKind {
         fn from(kind: SyntaxKind) -> Self {
-            Self(kind as u16)
+            Self(kind as u32)
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum Lang {}
-    impl rowan::Language for Lang {
-        type Kind = SyntaxKind;
-        fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
-            assert!(raw.0 <= Self::Kind::ROOT as u16);
+    impl cstree::Syntax for SyntaxKind {
+        fn from_raw(raw: RawSyntaxKind) -> Self {
+            assert!(raw.0 <= Self::ROOT as u32);
             // SAFETY: we just checked this is a valid variant.
-            unsafe { std::mem::transmute::<u16, SyntaxKind>(raw.0) }
+            unsafe { std::mem::transmute::<u32, SyntaxKind>(raw.0) }
         }
-        fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
-            kind.into()
+        fn into_raw(self) -> RawSyntaxKind {
+            self.into()
+        }
+
+        fn static_text(self) -> Option<&'static str> {
+            None
         }
     }
 
-    pub type SyntaxNode = rowan::SyntaxNode<Lang>;
-    pub type SyntaxToken = rowan::SyntaxToken<Lang>;
-    pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
+    pub type SyntaxNode = cstree::syntax::SyntaxNode<SyntaxKind>;
+    pub type SyntaxToken = cstree::syntax::SyntaxToken<SyntaxKind>;
+    pub type SyntaxElement = cstree::util::NodeOrToken<SyntaxNode, SyntaxToken>;
 }
 
-use std::{fmt, marker::PhantomData};
+use std::{
+    fmt,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
+use cstree::interning::TokenInterner;
 pub use syntax::*;
 
 // now, we can do our actual parsing.
@@ -67,16 +75,73 @@ use chumsky::{
     input::InputRef,
     prelude::*,
 };
-use rowan::{GreenNode, GreenNodeBuilder};
+use cstree::build::GreenNodeBuilder;
+use cstree::green::GreenNode;
 use SyntaxKind::*;
 
 type CSTError<'a> = Simple<'a, char>;
-type CSTExtra<'a> = extra::Full<CSTError<'a>, GreenNodeBuilder<'a>, ()>;
+type CSTExtra<'a> = extra::Full<CSTError<'a>, RowanRecorder<'a>, ()>;
 trait CSTParser<'a, O = ()>: chumsky::Parser<'a, &'a str, O, CSTExtra<'a>> {}
 impl<'a, O, T> CSTParser<'a, O> for T where T: chumsky::Parser<'a, &'a str, O, CSTExtra<'a>> {}
 
+struct RowanRecorder<'a> {
+    builder: GreenNodeBuilder<'a, 'static, SyntaxKind>,
+}
+
+impl<'a> Default for RowanRecorder<'a> {
+    fn default() -> Self {
+        Self {
+            builder: GreenNodeBuilder::new(),
+        }
+    }
+}
+
+impl<'a> chumsky::extra::ExtraState<'a, &'a str> for RowanRecorder<'a> {
+    type Recorder = Self;
+
+    fn recorder(&self) -> &Self::Recorder {
+        self
+    }
+
+    fn recorder_mut(&mut self) -> &mut Self::Recorder {
+        self
+    }
+}
+
+impl<'a> chumsky::recorder::Recorder<'a, &'a str> for RowanRecorder<'a> {
+    type SaveMarker = cstree::build::Checkpoint;
+
+    fn on_token(&mut self, _: char) {}
+
+    fn on_save<'parse>(&self, _: <&'parse str as Input<'parse>>::Offset) -> Self::SaveMarker {
+        self.builder.checkpoint()
+    }
+
+    fn on_rewind<'parse>(
+        &mut self,
+        marker: chumsky::input::Marker<'a, 'parse, &'a str, Self::SaveMarker>,
+    ) {
+        self.builder.revert(marker.ext_checkpoint())
+    }
+}
+
+impl<'a> Deref for RowanRecorder<'a> {
+    type Target = GreenNodeBuilder<'a, 'static, SyntaxKind>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.builder
+    }
+}
+
+impl<'a> DerefMut for RowanRecorder<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.builder
+    }
+}
+
 pub struct Parse<'a> {
     pub root: GreenNode,
+    interner: TokenInterner,
     pub errors: Vec<CSTError<'a>>,
 }
 
@@ -85,7 +150,8 @@ impl<'a> fmt::Debug for Parse<'a> {
         if !self.errors.is_empty() {
             writeln!(f, "error: {:?}", self.errors)?;
         }
-        Self::dbg(f, self.red_tree(), 0)
+        // Self::dbg(f, &self.red_tree(), 0)
+        self.red_tree().write_debug(&self.interner, f, true)
     }
 }
 
@@ -102,29 +168,33 @@ impl Parse<'_> {
         SyntaxNode::new_root(self.root.clone())
     }
 
-    fn dbg(f: &mut fmt::Formatter, node: SyntaxNode, indent: usize) -> fmt::Result {
-        writeln!(f, "{}{:?}", " ".repeat(indent * 2), node)?;
-        for child in node.children_with_tokens() {
-            match child {
-                rowan::NodeOrToken::Node(n) => Self::dbg(f, n, indent + 1)?,
-                rowan::NodeOrToken::Token(t) => {
-                    writeln!(f, "{}{:?}", " ".repeat((indent + 1) * 2), t)?;
-                }
-            }
-        }
-        Ok(())
-    }
+    // fn dbg(f: &mut fmt::Formatter, node: &SyntaxNode, indent: usize) -> fmt::Result {
+    //     writeln!(f, "{}{:?}", " ".repeat(indent * 2), node)?;
+    //     for child in node.children_with_tokens() {
+    //         match child {
+    //             NodeOrToken::Node(n) => Self::dbg(f, n, indent + 1)?,
+    //             NodeOrToken::Token(t) => {
+    //                 writeln!(f, "{}{:?}", " ".repeat((indent + 1) * 2), t)?;
+    //             }
+    //         }
+    //     }
+    //     Ok(())
+    // }
 }
 
 pub fn parse(text: &str) -> Parse {
-    let mut builder = GreenNodeBuilder::new();
+    let mut builder = RowanRecorder {
+        builder: GreenNodeBuilder::new(),
+    };
     // we don't put this in parser() to ensure rowan never panics even on horribly invalid programs
     builder.start_node(ROOT.into());
     let errors = parser().parse_with_state(text, &mut builder).into_errors();
     builder.finish_node();
+    let (root, interner) = builder.builder.finish();
     // dbg!(&errors, &builder);
     Parse {
-        root: builder.finish(),
+        root,
+        interner: interner.unwrap().into_interner().unwrap(),
         errors,
     }
 }
@@ -158,21 +228,28 @@ type RowanNode<'a, O, P> = Ext<RowanNode_<'a, O, P>>;
 impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for RowanNode_<'a, O, P> {
     fn parse(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
         let checkpoint = inp.state().checkpoint();
+        // println!("node start {:?} checkpoint {checkpoint:?}", self.kind);
 
         inp.parse(&self.parser)?;
         let builder = inp.state();
         builder.start_node_at(checkpoint, self.kind.into());
         builder.finish_node();
+        // println!("node finish {:?} {checkpoint:?}", self.kind);
         Ok(())
     }
 
     fn check(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
         let checkpoint = inp.state().checkpoint();
+        // println!(
+        //     "(check) node start {:?} checkpoint {checkpoint:?}",
+        //     self.kind
+        // );
 
         inp.check(&self.parser)?;
         let builder = inp.state();
         builder.start_node_at(checkpoint, self.kind.into());
         builder.finish_node();
+        // println!("(check) node finish {:?} {checkpoint:?}", self.kind);
         Ok(())
     }
 }
@@ -199,6 +276,7 @@ impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for Ro
         let start = inp.offset();
         inp.parse(&self.parser)?;
         let text = inp.slice_since(start..);
+        // println!("token {:?}", self.kind);
         inp.state().token(self.kind.into(), text);
         Ok(())
     }
@@ -207,6 +285,7 @@ impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for Ro
         let start = inp.offset();
         inp.check(&self.parser)?;
         let text = inp.slice_since(start..);
+        // println!("(check) token {:?}", self.kind);
         inp.state().token(self.kind.into(), text);
         Ok(())
     }
@@ -262,8 +341,8 @@ fn cell_range<'a>() -> impl CSTParser<'a> {
 }
 
 fn place<'a>() -> impl CSTParser<'a> {
-    node(PLACE, cell())
-    // node(PLACE, choice((cell_range(), cell())))
+    // node(PLACE, cell())
+    node(PLACE, choice((cell_range(), cell())))
 }
 
 // A1 = 3
