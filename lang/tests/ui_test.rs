@@ -56,7 +56,7 @@ fn config() -> Config {
     comment_defaults.base().normalize_stdout = filters;
     comment_defaults.base().exit_status = Spanned::dummy(0).into();
     comment_defaults.base().require_annotations = Spanned::dummy(false).into();
-    Config {
+    let mut config = Config {
         host: Some("irrelevant".into()),
         target: None,
         root_dir: "tests/raw_dumps".into(),
@@ -82,7 +82,16 @@ fn config() -> Config {
             messages_from_unknown_file_or_line: vec![],
         },
         abort_check: Default::default(),
-    }
+    };
+    config
+        .custom_comments
+        .insert("exit-status", |parser, args, _span| {
+            match args.content.parse::<i32>() {
+                Ok(exit_status) => parser.exit_status = Spanned::new(exit_status, args.span).into(),
+                Err(err) => parser.error(args.span, err.to_string()),
+            }
+        });
+    config
 }
 
 fn cargo_build(bin: &str) -> Utf8PathBuf {
