@@ -1,7 +1,8 @@
 ROOT@0..14
   STATEMENT@0..7
     ASSIGN@0..6
-      CELL@0..2 "A1"
+      PLACE@0..2
+        CELL@0..2 "A1"
       WHITESPACE@2..3 " "
       EQ@3..4 "="
       WHITESPACE@4..5 " "
@@ -9,7 +10,8 @@ ROOT@0..14
     NEWLINE@6..7 "\n"
   STATEMENT@7..14
     ASSIGN@7..13
-      CELL@7..9 "A2"
+      PLACE@7..9
+        CELL@7..9 "A2"
       WHITESPACE@9..10 " "
       EQ@10..11 "="
       WHITESPACE@11..12 " "

@@ -9,6 +9,7 @@
 mod syntax {
     #[repr(u16)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[allow(non_camel_case_types)]
     pub enum SyntaxKind {
         // leaf nodes
         NEWLINE = 0,
@@ -16,10 +17,16 @@ mod syntax {
         CELL,
         EQ,
         INT,
+        COLON,
+        // LEFT_BRACKET,
+        // RIGHT_BRACKET,
 
         // composite nodes
         ASSIGN,
         STATEMENT,
+        CELL_RANGE,
+        // ARRAY_RANGE,
+        PLACE,
         // this MUST come last in the enum; we depend on it for memory safety
         ROOT,
     }
@@ -111,7 +118,11 @@ impl Parse<'_> {
 
 pub fn parse(text: &str) -> Parse {
     let mut builder = GreenNodeBuilder::new();
+    // we don't put this in parser() to ensure rowan never panics even on horribly invalid programs
+    builder.start_node(ROOT.into());
     let errors = parser().parse_with_state(text, &mut builder).into_errors();
+    builder.finish_node();
+    // dbg!(&errors, &builder);
     Parse {
         root: builder.finish(),
         errors,
@@ -132,12 +143,7 @@ fn ws<'a>() -> impl CSTParser<'a> {
 }
 
 fn leaf<'a, O>(parser: impl CSTParser<'a, O>, kind: SyntaxKind) -> impl CSTParser<'a, ()> {
-    ws().then(parser.map_with(move |_, extra| {
-        // println!("leaf {kind:?}");
-        let slice = extra.slice();
-        extra.state().token(kind.into(), slice);
-    }))
-    .map(|_| ())
+    ws().then(rowan_leaf(kind, parser)).map(|_| ())
 }
 
 struct RowanNode_<'a, O, P: CSTParser<'a, O>> {
@@ -179,6 +185,41 @@ fn node<'a, O, P: CSTParser<'a, O>>(kind: SyntaxKind, parser: P) -> RowanNode<'a
     })
 }
 
+struct RowanLeaf_<'a, O, P: CSTParser<'a, O>> {
+    parser: P,
+    kind: SyntaxKind,
+    _marker: PhantomData<(&'a str, fn() -> O)>,
+}
+
+type RowanLeaf<'a, O, P> = Ext<RowanLeaf_<'a, O, P>>;
+
+/// This needs to be an extension, not a combinator using `map_with`, because map_with isn't evaluated when chumsky notices the output isn't used.
+impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for RowanLeaf_<'a, O, P> {
+    fn parse(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
+        let start = inp.offset();
+        inp.parse(&self.parser)?;
+        let text = inp.slice_since(start..);
+        inp.state().token(self.kind.into(), text);
+        Ok(())
+    }
+
+    fn check(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
+        let start = inp.offset();
+        inp.check(&self.parser)?;
+        let text = inp.slice_since(start..);
+        inp.state().token(self.kind.into(), text);
+        Ok(())
+    }
+}
+
+fn rowan_leaf<'a, O, P: CSTParser<'a, O>>(kind: SyntaxKind, parser: P) -> RowanLeaf<'a, O, P> {
+    Ext(RowanLeaf_ {
+        parser,
+        kind,
+        _marker: PhantomData,
+    })
+}
+
 macro_rules! leafs {
     ($(fn $fn:ident: $name:ident = $parser:expr);* $(;)? ) => {
         $( fn $fn<'a>() -> impl CSTParser<'a, ()> {
@@ -191,15 +232,16 @@ leafs! {
     fn eq: EQ = just('=');
     fn nl: NEWLINE = just('\n');
     fn int: INT = text::digits(10);
+    fn colon: COLON = just(':');
 }
 
 #[rustfmt::skip]
 fn parser<'a>() -> impl CSTParser<'a> {
-    node(ROOT, choice((
+    choice((
         ws().then(nl()).map(|_| ()),
         statement(),
     ))
-    .repeated().count().map(|_| ()).then_ignore(end()))
+    .repeated().count().map(|_| ()).then_ignore(end())
 }
 
 // AAA123
@@ -215,9 +257,18 @@ fn cell<'a>() -> impl CSTParser<'a, ()> {
     )
 }
 
+fn cell_range<'a>() -> impl CSTParser<'a> {
+    node(CELL_RANGE, cell().then(colon()).then(cell()))
+}
+
+fn place<'a>() -> impl CSTParser<'a> {
+    node(PLACE, cell())
+    // node(PLACE, choice((cell_range(), cell())))
+}
+
 // A1 = 3
 fn assign<'a>() -> impl CSTParser<'a> {
-    node(ASSIGN, cell().then(eq()).then(int()))
+    node(ASSIGN, place().then(eq()).then(int()))
 }
 
 fn statement<'a>() -> impl CSTParser<'a> {
