@@ -1,0 +1,29 @@
+ROOT@0..34
+  STATEMENT@0..16
+    ASSIGN@0..15
+      PLACE@0..2
+        CELL@0..2 "B1"
+      WHITESPACE@2..3 " "
+      EQ@3..4 "="
+      EXPR@4..15
+        ENUM_EXPR@4..15
+          WHITESPACE@4..5 " "
+          ENUM_TOK@5..9 "enum"
+          PLACE@9..15
+            CELL_RANGE@9..15
+              WHITESPACE@9..10 " "
+              CELL@10..12 "A1"
+              COLON@12..13 ":"
+              CELL@13..15 "A3"
+    NEWLINE@15..16 "\n"
+  STATEMENT@16..34
+    ALIAS_STMT@16..33
+      ALIAS_TOK@16..21 "alias"
+      WHITESPACE@21..22 " "
+      IDENT@22..28 "fruits"
+      WHITESPACE@28..29 " "
+      EQ@29..30 "="
+      PLACE@30..33
+        WHITESPACE@30..31 " "
+        CELL@31..33 "B1"
+    NEWLINE@33..34 "\n"

@@ -1,0 +1,35 @@
+ROOT@0..32
+  STATEMENT@0..7
+    ASSIGN@0..6
+      PLACE@0..2
+        CELL@0..2 "A1"
+      WHITESPACE@2..3 " "
+      EQ@3..4 "="
+      EXPR@4..6
+        WHITESPACE@4..5 " "
+        INT@5..6 "3"
+    NEWLINE@6..7 "\n"
+  STATEMENT@7..22
+    ALIAS_STMT@7..21
+      ALIAS_TOK@7..12 "alias"
+      WHITESPACE@12..13 " "
+      IDENT@13..16 "num"
+      WHITESPACE@16..17 " "
+      EQ@17..18 "="
+      PLACE@18..21
+        WHITESPACE@18..19 " "
+        CELL@19..21 "A1"
+    NEWLINE@21..22 "\n"
+  STATEMENT@22..32
+    ASSIGN@22..31
+      PLACE@22..24
+        CELL@22..24 "A2"
+      WHITESPACE@24..25 " "
+      EQ@25..26 "="
+      EXPR@26..31
+        PLACE@26..31
+          ALIAS_EXPR@26..31
+            WHITESPACE@26..27 " "
+            DOLLAR@27..28 "$"
+            IDENT@28..31 "num"
+    NEWLINE@31..32 "\n"

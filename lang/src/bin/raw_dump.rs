@@ -15,22 +15,14 @@ impl From<io::Error> for Error {
 fn main() -> Result<(), Error> {
     let path = std::env::args().nth(1).unwrap();
     let input = std::fs::read_to_string(path)?;
-    let output = lang::parse(&input);
-    if output.errors.is_empty() {
-        dbg(output.red_tree(), 0);
+    let mut output = lang::parse(&input);
+    // steal these errors so they don't get printed in the debug output
+    let errs = std::mem::take(&mut output.errors);
+    print!("{output:?}");
+    if errs.is_empty() {
         Ok(())
     } else {
-        eprintln!("{:#?}", output.errors);
+        eprintln!("{:#?}", errs);
         Err(Error::Parse)
-    }
-}
-
-fn dbg(node: lang::SyntaxNode, indent: usize) {
-    println!("{}{:?}", " ".repeat(indent * 2), node);
-    for child in node.children_with_tokens() {
-        match child {
-            rowan::NodeOrToken::Node(n) => dbg(n, indent + 1),
-            rowan::NodeOrToken::Token(t) => println!("{}{:?}", " ".repeat((indent + 1) * 2), t),
-        }
     }
 }

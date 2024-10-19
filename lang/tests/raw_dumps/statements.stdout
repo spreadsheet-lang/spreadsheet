@@ -1,0 +1,70 @@
+ROOT@0..101
+  NEWLINE@0..1 "\n"
+  COMMENT@1..20 "//@ exit-status: 1\n"
+  STATEMENT@20..25
+    ASSIGN@20..24
+      PLACE@20..22
+        CELL@20..22 "D1"
+      EQ@22..23 "="
+      EXPR@23..24
+        INT@23..24 "0"
+    NEWLINE@24..25 "\n"
+  NEWLINE@25..26 "\n"
+  STATEMENT@26..37
+    ASSIGN@26..36
+      PLACE@26..28
+        CELL@26..28 "A1"
+      EQ@28..29 "="
+      EXPR@29..36
+        STR@29..36 "\"apple\""
+    NEWLINE@36..37 "\n"
+  STATEMENT@37..51
+    ASSIGN@37..50
+      PLACE@37..39
+        CELL@37..39 "A2"
+      WHITESPACE@39..40 " "
+      EQ@40..41 "="
+      EXPR@41..50
+        WHITESPACE@41..42 " "
+        STR@42..50 "\"banana\""
+    NEWLINE@50..51 "\n"
+  STATEMENT@51..65
+    ASSIGN@51..64
+      PLACE@51..53
+        CELL@51..53 "A3"
+      WHITESPACE@53..54 " "
+      EQ@54..55 "="
+      EXPR@55..64
+        WHITESPACE@55..56 " "
+        STR@56..64 "\"cherry\""
+    NEWLINE@64..65 "\n"
+  NEWLINE@65..66 "\n"
+  STATEMENT@66..82
+    ASSIGN@66..81
+      PLACE@66..68
+        CELL@66..68 "B1"
+      WHITESPACE@68..69 " "
+      EQ@69..70 "="
+      EXPR@70..81
+        ENUM_EXPR@70..81
+          WHITESPACE@70..71 " "
+          ENUM_TOK@71..75 "enum"
+          PLACE@75..81
+            CELL_RANGE@75..81
+              WHITESPACE@75..76 " "
+              CELL@76..78 "A1"
+              COLON@78..79 ":"
+              CELL@79..81 "A3"
+    NEWLINE@81..82 "\n"
+  STATEMENT@82..100
+    ALIAS_STMT@82..99
+      ALIAS_TOK@82..87 "alias"
+      WHITESPACE@87..88 " "
+      IDENT@88..94 "fruits"
+      WHITESPACE@94..95 " "
+      EQ@95..96 "="
+      PLACE@96..99
+        WHITESPACE@96..97 " "
+        CELL@97..99 "B1"
+    NEWLINE@99..100 "\n"
+  NEWLINE@100..101 "\n"
