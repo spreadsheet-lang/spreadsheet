@@ -1,0 +1,31 @@
+ROOT@0..41
+  STATEMENT@0..13
+    ASSIGN@0..12
+      PLACE@0..2
+        CELL@0..2 "A1"
+      WHITESPACE@2..3 " "
+      EQ@3..4 "="
+      EXPR@4..12
+        WHITESPACE@4..5 " "
+        STR@5..12 "\"apple\""
+    NEWLINE@12..13 "\n"
+  STATEMENT@13..27
+    ASSIGN@13..26
+      PLACE@13..15
+        CELL@13..15 "A2"
+      WHITESPACE@15..16 " "
+      EQ@16..17 "="
+      EXPR@17..26
+        WHITESPACE@17..18 " "
+        STR@18..26 "\"banana\""
+    NEWLINE@26..27 "\n"
+  STATEMENT@27..41
+    ASSIGN@27..40
+      PLACE@27..29
+        CELL@27..29 "A3"
+      WHITESPACE@29..30 " "
+      EQ@30..31 "="
+      EXPR@31..40
+        WHITESPACE@31..32 " "
+        STR@32..40 "\"cherry\""
+    NEWLINE@40..41 "\n"

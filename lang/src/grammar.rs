@@ -43,6 +43,8 @@ leafs! {
     fn alias_tok: ALIAS_TOK = just("alias");
     fn enum_tok: ENUM_TOK = just("enum");
     fn ident: IDENT = chumsky::text::ident();
+    // note that we don't have any string escapes
+    fn str: STR = none_of('"').repeated().delimited_by(just('"'), just('"'));
 }
 
 // AAA123
@@ -64,7 +66,7 @@ nodes! {
     fn alias_expr: ALIAS_EXPR = dollar().then(ident());
     fn place: PLACE = choice((cell_range(), alias_expr(), cell()));
     fn enum_expr: ENUM_EXPR = enum_tok().then(place());
-    fn expr: EXPR = choice((enum_expr(), int(), place()));
+    fn expr: EXPR = choice((enum_expr(), int(), str(), place()));
     // A1 = 3
     fn assign: ASSIGN = place().then(eq()).then(expr());
     // alias foo = A1
@@ -79,4 +81,19 @@ pub(crate) fn parser<'a>() -> impl CSTParser<'a> {
         statement(),
     ))
     .repeated().then_ignore(end())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[track_caller]
+    fn ok<'a, O>(input: &'a str, parser: impl CSTParser<'a, O>) {
+        parser.parse(input).into_result().unwrap();
+    }
+
+    #[test]
+    fn simple_str() {
+        ok(r#""abc""#, str());
+    }
 }

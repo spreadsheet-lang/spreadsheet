@@ -34,6 +34,7 @@ mod syntax {
         // data tokens
         WHITESPACE,
         IDENT,
+        STR,
 
         // composite nodes
 
