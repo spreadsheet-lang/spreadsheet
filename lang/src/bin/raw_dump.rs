@@ -22,7 +22,9 @@ fn main() -> Result<(), Error> {
     if errs.is_empty() {
         Ok(())
     } else {
-        eprintln!("{:#?}", errs);
+        for err in errs {
+            eprintln!("{err:#?}");
+        }
         Err(Error::Parse)
     }
 }
