@@ -370,8 +370,10 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 name = "lang"
 version = "0.1.0"
 dependencies = [
+ "annotate-snippets",
  "cargo_metadata",
  "chumsky",
+ "colored",
  "cstree",
  "ctrlc",
  "serde_json",
