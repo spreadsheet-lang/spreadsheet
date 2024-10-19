@@ -39,6 +39,9 @@ leafs! {
     fn nl: NEWLINE = just('\n');
     fn int: INT = text::digits(10);
     fn colon: COLON = just(':');
+    fn dollar: DOLLAR = just('$');
+    fn alias_tok: ALIAS_TOK = just("alias");
+    fn ident: IDENT = chumsky::text::ident();
 }
 
 // AAA123
@@ -56,10 +59,15 @@ fn cell<'a>() -> impl CSTParser<'a, ()> {
 nodes! {
     // A1:A3
     fn cell_range: CELL_RANGE = cell().then(colon()).then(cell());
-    fn place: PLACE = choice((cell_range(), cell()));
+    // $foo
+    fn alias_expr: ALIAS_EXPR = dollar().then(ident());
+    fn place: PLACE = choice((cell_range(), alias_expr(), cell()));
     // A1 = 3
-    fn assign: ASSIGN = place().then(eq()).then(int());
-    fn statement: STATEMENT = assign().then(nl());
+    fn expr: EXPR = choice((int(), place()));
+    fn assign: ASSIGN = place().then(eq()).then(expr());
+    // alias foo = A1
+    fn alias_stmt: ALIAS_STMT = alias_tok().then(ident()).then(eq()).then(place());
+    fn statement: STATEMENT = choice((alias_stmt(), assign())).then(nl());
 }
 
 #[rustfmt::skip]

@@ -23,15 +23,26 @@ mod syntax {
         EQ,
         INT,
         COLON,
+        DOLLAR,
+        ALIAS_TOK,
+        IDENT,
         // LEFT_BRACKET,
         // RIGHT_BRACKET,
 
         // composite nodes
-        ASSIGN,
-        STATEMENT,
+
+        // expressions
         CELL_RANGE,
-        // ARRAY_RANGE,
         PLACE,
+        ALIAS_EXPR,
+        EXPR,
+
+        // statements
+        ASSIGN,
+        ALIAS_STMT,
+        STATEMENT,
+        // ARRAY_RANGE,
+
         // this MUST come last in the enum; we depend on it for memory safety
         ROOT,
     }
@@ -181,6 +192,7 @@ pub fn parse(text: &str) -> Parse {
 pub(crate) struct RowanNode_<'a, O, P: CSTParser<'a, O>> {
     parser: P,
     kind: SyntaxKind,
+    debug: bool,
     _marker: PhantomData<(&'a str, fn() -> O)>,
 }
 
@@ -190,28 +202,33 @@ pub(crate) type RowanNode<'a, O, P> = Ext<RowanNode_<'a, O, P>>;
 impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for RowanNode_<'a, O, P> {
     fn parse(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
         let checkpoint = inp.state().checkpoint();
-        // println!("node start {:?} checkpoint {checkpoint:?}", self.kind);
+        if self.debug {
+            println!("node start {:?} {checkpoint:?}", self.kind);
+        }
 
         inp.parse(&self.parser)?;
         let builder = inp.state();
         builder.start_node_at(checkpoint, self.kind.into());
         builder.finish_node();
-        // println!("node finish {:?} {checkpoint:?}", self.kind);
+        if self.debug {
+            println!("node finish {:?} {checkpoint:?}", self.kind);
+        }
         Ok(())
     }
 
     fn check(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
         let checkpoint = inp.state().checkpoint();
-        // println!(
-        //     "(check) node start {:?} checkpoint {checkpoint:?}",
-        //     self.kind
-        // );
+        if self.debug {
+            println!("(check) node start {:?} {checkpoint:?}", self.kind);
+        }
 
         inp.check(&self.parser)?;
         let builder = inp.state();
         builder.start_node_at(checkpoint, self.kind.into());
         builder.finish_node();
-        // println!("(check) node finish {:?} {checkpoint:?}", self.kind);
+        if self.debug {
+            println!("(check) node finish {:?} {checkpoint:?}", self.kind);
+        }
         Ok(())
     }
 }
@@ -223,6 +240,7 @@ pub(crate) fn rowan_node<'a, O, P: CSTParser<'a, O>>(
     Ext(RowanNode_ {
         parser,
         kind,
+        debug: option_env!("SSL_DEBUG").is_some(),
         _marker: PhantomData,
     })
 }
@@ -230,6 +248,7 @@ pub(crate) fn rowan_node<'a, O, P: CSTParser<'a, O>>(
 pub(crate) struct RowanLeaf_<'a, O, P: CSTParser<'a, O>> {
     parser: P,
     kind: SyntaxKind,
+    debug: bool,
     _marker: PhantomData<(&'a str, fn() -> O)>,
 }
 
@@ -243,7 +262,9 @@ impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for Ro
         let text = inp.slice_since(start..);
         // need this to handle `or_not`
         if !text.is_empty() {
-            // println!("token {:?}", self.kind);
+            if self.debug {
+                println!("token {:?}", self.kind);
+            }
             inp.state().token(self.kind.into(), text);
         }
         Ok(())
@@ -254,7 +275,9 @@ impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for Ro
         inp.check(&self.parser)?;
         let text = inp.slice_since(start..);
         if !text.is_empty() {
-            // println!("(check) token {:?}", self.kind);
+            if self.debug {
+                println!("(check) token {:?}", self.kind);
+            }
             inp.state().token(self.kind.into(), text);
         }
         Ok(())
@@ -268,6 +291,7 @@ pub(crate) fn rowan_leaf<'a, O, P: CSTParser<'a, O>>(
     Ext(RowanLeaf_ {
         parser,
         kind,
+        debug: option_env!("SSL_DEBUG").is_some(),
         _marker: PhantomData,
     })
 }
