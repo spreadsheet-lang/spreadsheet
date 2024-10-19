@@ -28,24 +28,97 @@ fn Home() -> Element {
     let mut col = use_signal(|| 0);
 
     let col_name = name_from_index(*col.read());
+
+    let left_top_style = r#"
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        height: 20px;
+        width: 20px;
+        background-color: red;
+        text-align: center;
+    "#;
+    let right_top_style = r#"
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        height: 20px;
+        width: 20px;
+        background-color: red;
+    "#;
+
+    let left_bottom_style = r#"
+        position: absolute;
+        bottom: 0px;
+        left: 0px;
+        height: 20px;
+        width: 20px;
+        background-color: red;
+    "#;
+    let right_bottom_style = r#"
+        position: absolute;
+        bottom: 0px;
+        right: 0px;
+        height: 20px;
+        width: 20px;
+        background-color: red;
+    "#;
+    let center_style = r#"
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        left: 20px;
+        right: 20px;
+        background-color: yellow;
+    "#;
+    let top_style = r#"
+        position: absolute;
+        top: 0px;
+        left: 20px;
+        right: 20px;
+        height: 20px;
+    "#;
+    let bottom_style = r#"
+        position: absolute;
+        bottom: 0px;
+        left: 20px;
+        right: 20px;
+        height: 20px;
+    "#;
+    let left_style = r#"
+        position: absolute;
+        bottom: 20px;
+        left: 0px;
+        top: 20px;
+        width: 20px;
+    "#;
+    let right_style = r#"
+        position: absolute;
+        bottom: 20px;
+        right: 0px;
+        top: 20px;
+        width: 20px;
+    "#;
     let left = if *col.read() == 0 {
-        rsx! {button { disabled: true, "<" }}
+        rsx! {button { style: "{left_style}", disabled: true, "<" }}
     } else {
-        rsx! {button { onclick: move |_| col -= 1, "<" }}
+        rsx! {button { style: "{left_style}", onclick: move |_| col -= 1, "<" }}
     };
     let up = if *row.read() == 0 {
-        rsx! {button { disabled: true, "^" }}
+        rsx! {button { style: "{top_style}", disabled: true, "^" }}
     } else {
-        rsx! {button { onclick: move |_| row -= 1, "^" }}
+        rsx! {button { style: "{top_style}", onclick: move |_| row -= 1, "^" }}
     };
     rsx! {
-        div {
-            h1 { "{col_name}{row}" }
-            {left}
-            button { onclick: move |_| col += 1, ">" }
-            {up}
-            button { onclick: move |_| row += 1, "v" }
-        }
+        div { style: "{left_top_style}", "{col_name}{row}" }
+        div { style: "{right_top_style}" }
+        div { style: "{left_bottom_style}" }
+        div { style: "{right_bottom_style}" }
+        div { style: "{center_style}" }
+        {left}
+        button { style: "{right_style}", onclick: move |_| row += 1, ">" }
+        {up}
+        button { style: "{bottom_style}", onclick: move |_| col += 1, "v" }
     }
 }
 
