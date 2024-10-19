@@ -45,6 +45,7 @@ leafs! {
     fn ident: IDENT = chumsky::text::ident();
     // note that we don't have any string escapes
     fn str: STR = none_of('"').repeated().delimited_by(just('"'), just('"'));
+    fn comment: COMMENT = ws().then(just("//")).then(none_of('\n').repeated()).then(nl());
 }
 
 // AAA123
@@ -77,6 +78,7 @@ nodes! {
 #[rustfmt::skip]
 pub(crate) fn parser<'a>() -> impl CSTParser<'a> {
     choice((
+        comment(),
         ws().then_ignore(nl()),
         statement(),
     ))
@@ -89,11 +91,16 @@ mod test {
 
     #[track_caller]
     fn ok<'a, O>(input: &'a str, parser: impl CSTParser<'a, O>) {
-        parser.parse(input).into_result().unwrap();
+        parser.parse(input).unwrap();
     }
 
     #[test]
     fn simple_str() {
         ok(r#""abc""#, str());
+    }
+
+    #[test]
+    fn simple_comment() {
+        ok("// foo\n", comment());
     }
 }

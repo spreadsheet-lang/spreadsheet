@@ -33,6 +33,7 @@ mod syntax {
 
         // data tokens
         WHITESPACE,
+        COMMENT,
         IDENT,
         STR,
 
@@ -77,7 +78,9 @@ mod syntax {
     }
 
     pub type SyntaxNode = cstree::syntax::SyntaxNode<SyntaxKind>;
+    #[allow(dead_code)]
     pub type SyntaxToken = cstree::syntax::SyntaxToken<SyntaxKind>;
+    #[allow(dead_code)]
     pub type SyntaxElement = cstree::util::NodeOrToken<SyntaxNode, SyntaxToken>;
 }
 
