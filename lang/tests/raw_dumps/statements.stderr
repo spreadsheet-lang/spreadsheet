@@ -1,2 +1,7 @@
-found 't' at 100..101
+error: unexpected character
+  --> tests/raw_dumps/statements.ssl:11:1
+   |
+11 | type C1:C4 = $fruits
+   | ^ `t` was not expected here
+   |
 Error: Parse
