@@ -41,6 +41,7 @@ leafs! {
     fn colon: COLON = just(':');
     fn dollar: DOLLAR = just('$');
     fn alias_tok: ALIAS_TOK = just("alias");
+    fn enum_tok: ENUM_TOK = just("enum");
     fn ident: IDENT = chumsky::text::ident();
 }
 
@@ -62,8 +63,9 @@ nodes! {
     // $foo
     fn alias_expr: ALIAS_EXPR = dollar().then(ident());
     fn place: PLACE = choice((cell_range(), alias_expr(), cell()));
+    fn enum_expr: ENUM_EXPR = enum_tok().then(place());
+    fn expr: EXPR = choice((enum_expr(), int(), place()));
     // A1 = 3
-    fn expr: EXPR = choice((int(), place()));
     fn assign: ASSIGN = place().then(eq()).then(expr());
     // alias foo = A1
     fn alias_stmt: ALIAS_STMT = alias_tok().then(ident()).then(eq()).then(place());

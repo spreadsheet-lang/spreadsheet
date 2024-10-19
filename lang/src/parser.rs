@@ -17,17 +17,23 @@ mod syntax {
     #[allow(non_camel_case_types)]
     pub enum SyntaxKind {
         // leaf nodes
+        // symbols
         NEWLINE = 0,
-        WHITESPACE,
         CELL,
         EQ,
         INT,
         COLON,
         DOLLAR,
-        ALIAS_TOK,
-        IDENT,
         // LEFT_BRACKET,
         // RIGHT_BRACKET,
+
+        // keywords
+        ALIAS_TOK,
+        ENUM_TOK,
+
+        // data tokens
+        WHITESPACE,
+        IDENT,
 
         // composite nodes
 
@@ -35,6 +41,7 @@ mod syntax {
         CELL_RANGE,
         PLACE,
         ALIAS_EXPR,
+        ENUM_EXPR,
         EXPR,
 
         // statements

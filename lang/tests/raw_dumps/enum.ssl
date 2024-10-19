@@ -1,0 +1,2 @@
+B1 = enum A1:A3
+alias fruits = B1
