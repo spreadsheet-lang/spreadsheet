@@ -8,6 +8,22 @@
 //! This module is "glue code" between rowan and chumsky.
 //! The actual parser lives in `grammar.rs`.
 
+use std::{
+    fmt,
+    marker::PhantomData,
+    ops::{Deref, DerefMut, Range},
+};
+
+use chumsky::{
+    extension::v1::{Ext, ExtParser},
+    input::{BoxedStream, InputRef, SpannedInput, Stream, ValueInput},
+    prelude::*,
+};
+use cstree::{build::GreenNodeBuilder, green::GreenNode, interning::TokenInterner};
+use logos::Logos;
+
+use crate::grammar::{self, Token};
+
 // separate mod to encapsulate the unsafety
 mod syntax {
     use cstree::RawSyntaxKind;
@@ -17,8 +33,9 @@ mod syntax {
     #[allow(non_camel_case_types)]
     pub enum SyntaxKind {
         // leaf nodes
-        // symbols
         NEWLINE = 0,
+
+        // symbols
         CELL,
         EQ,
         INT,
@@ -50,7 +67,9 @@ mod syntax {
         ASSIGN,
         ALIAS_STMT,
         STATEMENT,
+        COMMENTED_STATEMENT,
         // ARRAY_RANGE,
+        SOURCE_FILE,
 
         // this MUST come last in the enum; we depend on it for memory safety
         ROOT,
@@ -84,57 +103,60 @@ mod syntax {
     pub type SyntaxElement = cstree::util::NodeOrToken<SyntaxNode, SyntaxToken>;
 }
 
-use std::{
-    fmt,
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
-
-use cstree::interning::TokenInterner;
 pub use syntax::*;
 
-use chumsky::{
-    extension::v1::{Ext, ExtParser},
-    input::InputRef,
-    prelude::*,
-};
-use cstree::build::GreenNodeBuilder;
-use cstree::green::GreenNode;
-
-pub(crate) type CSTError<'a> = Simple<'a, char>;
+pub(crate) type CSTError<'a> = Rich<'a, Token>;
 pub(crate) type CSTExtra<'a> = extra::Full<CSTError<'a>, RowanRecorder<'a>, ()>;
-pub(crate) trait CSTParser<'a, O = ()>:
-    chumsky::Parser<'a, &'a str, O, CSTExtra<'a>>
+pub(crate) trait CSTParser<
+    'a,
+    O = (),
+    I: ValueInput<'a, Token = Token, Span = SimpleSpan> = SpannedInput<
+        Token,
+        SimpleSpan,
+        BoxedStream<'a, (Token, SimpleSpan)>,
+    >,
+>: chumsky::Parser<'a, I, O, CSTExtra<'a>>
 {
 }
-impl<'a, O, T> CSTParser<'a, O> for T where T: chumsky::Parser<'a, &'a str, O, CSTExtra<'a>> {}
+
+impl<'a, I, O, T> CSTParser<'a, O, I> for T
+where
+    T: chumsky::Parser<'a, I, O, CSTExtra<'a>>,
+    I: ValueInput<'a, Token = Token, Span = SimpleSpan>,
+{
+}
 
 pub(crate) struct RowanRecorder<'a> {
+    src: &'a str,
     builder: GreenNodeBuilder<'a, 'static, SyntaxKind>,
 }
 
-impl<'a> Default for RowanRecorder<'a> {
-    fn default() -> Self {
-        Self {
-            builder: GreenNodeBuilder::new(),
-        }
-    }
-}
+type CSTInput<'a> = SpannedInput<Token, SimpleSpan, BoxedStream<'a, (Token, SimpleSpan)>>;
 
-impl<'a> chumsky::recorder::Recorder<'a, &'a str> for RowanRecorder<'a> {
+impl<'a, I> chumsky::inspector::Inspector<'a, I> for RowanRecorder<'a>
+where
+    I: ValueInput<'a, Token = Token, Span = SimpleSpan>,
+{
     type SaveMarker = cstree::build::Checkpoint;
 
-    fn on_token(&mut self, _: char) {}
+    fn on_token(&mut self, _: &Token) {}
 
-    fn on_save<'parse>(&self, _: <&'parse str as Input<'parse>>::Offset) -> Self::SaveMarker {
-        self.builder.checkpoint()
+    fn on_save<'parse>(&self, _: I::Offset) -> Self::SaveMarker {
+        let checkpoint = self.builder.checkpoint();
+        if option_env!("SSL_DEBUG").is_some() {
+            println!("save {checkpoint:?}");
+        }
+        checkpoint
     }
 
     fn on_rewind<'parse>(
         &mut self,
-        marker: chumsky::input::Marker<'a, 'parse, &'a str, Self::SaveMarker>,
+        marker: chumsky::input::Marker<'a, 'parse, I, Self::SaveMarker>,
     ) {
-        self.builder.revert(marker.ext_checkpoint())
+        if option_env!("SSL_DEBUG").is_some() {
+            println!("rollback {:?}", marker.ext_checkpoint());
+        }
+        self.builder.revert_to(marker.ext_checkpoint())
     }
 }
 
@@ -154,7 +176,7 @@ impl<'a> DerefMut for RowanRecorder<'a> {
 
 pub struct Parse<'a> {
     pub root: GreenNode,
-    interner: TokenInterner,
+    pub interner: TokenInterner,
     pub errors: Vec<CSTError<'a>>,
 }
 
@@ -182,17 +204,39 @@ impl Parse<'_> {
 }
 
 pub fn parse(text: &str) -> Parse {
-    let mut builder = RowanRecorder {
+    parse_node(text, grammar::file())
+}
+
+pub(crate) fn parse_node<'a, P>(text: &'a str, parser: P) -> Parse<'a>
+where
+    P: CSTParser<'a, ()>,
+{
+    let tokens = Token::lexer(text).spanned().map(|(tok, span)| match tok {
+        Ok(tok) => {
+            if option_env!("SSL_DEBUG").is_some() {
+                eprintln!("lexer: tok={tok:?}@{span:?} {:?}", &text[span.clone()]);
+            }
+            (tok, span.into())
+        }
+        Err(()) => (Token::Error, span.into()),
+    });
+    let stream = Stream::from_iter(tokens)
+        .boxed()
+        .spanned(SimpleSpan::splat(text.len()));
+    let mut recorder = RowanRecorder {
+        src: &text,
         builder: GreenNodeBuilder::new(),
     };
-    // we don't put this in parser() to ensure rowan never panics even on horribly invalid programs
-    builder.start_node(SyntaxKind::ROOT.into());
-    let errors = crate::grammar::parser()
-        .parse_with_state(text, &mut builder)
-        .into_errors();
-    builder.finish_node();
-    let (root, interner) = builder.builder.finish();
-    // dbg!(&errors, &builder);
+
+    // NOTE: cstree requires that our root node has exactly one child.
+    // Additionally, in some unit tests we pass in individual tokens, which isn't allowed.
+    // Rather than try to be smart, just wrap every possible parse tree in a ROOT node.
+    recorder.start_node(SyntaxKind::ROOT.into());
+    let errors = parser.parse_with_state(stream, &mut recorder).into_errors();
+    recorder.finish_node();
+
+    let (root, interner) = recorder.builder.finish();
+
     Parse {
         root,
         interner: interner.unwrap().into_interner().unwrap(),
@@ -204,21 +248,27 @@ pub(crate) struct RowanNode_<'a, O, P: CSTParser<'a, O>> {
     parser: P,
     kind: SyntaxKind,
     debug: bool,
-    _marker: PhantomData<(&'a str, fn() -> O)>,
+    _marker: PhantomData<(CSTInput<'a>, fn() -> O)>,
 }
 
 pub(crate) type RowanNode<'a, O, P> = Ext<RowanNode_<'a, O, P>>;
 
 /// This needs to be an extension, not a combinator using `map_with`, because map_with can be evaluated multiple times in the case of backtracking.
-impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for RowanNode_<'a, O, P> {
-    fn parse(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
+impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, CSTInput<'a>, (), CSTExtra<'a>>
+    for RowanNode_<'a, O, P>
+{
+    // WARNING: keep this in sync with check()
+    fn parse(
+        &self,
+        inp: &mut InputRef<'a, '_, CSTInput<'a>, CSTExtra<'a>>,
+    ) -> Result<(), CSTError<'a>> {
         let checkpoint = inp.state().checkpoint();
         if self.debug {
             println!("node start {:?} {checkpoint:?}", self.kind);
         }
 
         inp.parse(&self.parser)?;
-        let builder = inp.state();
+        let builder = &mut inp.state().builder;
         builder.start_node_at(checkpoint, self.kind.into());
         builder.finish_node();
         if self.debug {
@@ -227,7 +277,11 @@ impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for Ro
         Ok(())
     }
 
-    fn check(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
+    // WARNING: keep this in sync with parse()
+    fn check(
+        &self,
+        inp: &mut InputRef<'a, '_, CSTInput<'a>, CSTExtra<'a>>,
+    ) -> Result<(), CSTError<'a>> {
         let checkpoint = inp.state().checkpoint();
         if self.debug {
             println!("(check) node start {:?} {checkpoint:?}", self.kind);
@@ -260,37 +314,60 @@ pub(crate) struct RowanLeaf_<'a, O, P: CSTParser<'a, O>> {
     parser: P,
     kind: SyntaxKind,
     debug: bool,
-    _marker: PhantomData<(&'a str, fn() -> O)>,
+    _marker: PhantomData<(CSTInput<'a>, fn() -> O)>,
 }
 
 pub(crate) type RowanLeaf<'a, O, P> = Ext<RowanLeaf_<'a, O, P>>;
 
 /// This needs to be an extension, not a combinator using `map_with`, because map_with isn't evaluated when chumsky notices the output isn't used.
-impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, &'a str, (), CSTExtra<'a>> for RowanLeaf_<'a, O, P> {
-    fn parse(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
+impl<'a, O, P: CSTParser<'a, O>> ExtParser<'a, CSTInput<'a>, (), CSTExtra<'a>>
+    for RowanLeaf_<'a, O, P>
+{
+    // WARNING: keep this in sync with check()
+    fn parse(
+        &self,
+        inp: &mut InputRef<'a, '_, CSTInput<'a>, CSTExtra<'a>>,
+    ) -> Result<(), CSTError<'a>> {
         let start = inp.offset();
         inp.parse(&self.parser)?;
-        let text = inp.slice_since(start..);
-        // need this to handle `or_not`
-        if !text.is_empty() {
-            if self.debug {
-                println!("token {:?}", self.kind);
-            }
-            inp.state().token(self.kind.into(), text);
+
+        // HACK: chumsky is buggy and always gives us back at least one token,
+        // even when we used or_not to avoid eating a token. override what it
+        // thinks a span is.
+        if start == inp.offset() {
+            return Ok(());
         }
+
+        let span: Range<usize> = inp.span_since(start).into();
+        let text: &str = &inp.state().src[span.clone()];
+        if self.debug {
+            println!("token {:?} {:} (offset={:?})", self.kind, text, span,);
+        }
+        inp.state().token(self.kind.into(), text);
         Ok(())
     }
 
-    fn check(&self, inp: &mut InputRef<'a, '_, &'a str, CSTExtra<'a>>) -> Result<(), CSTError<'a>> {
+    // WARNING: keep this in sync with parse()
+    fn check(
+        &self,
+        inp: &mut InputRef<'a, '_, CSTInput<'a>, CSTExtra<'a>>,
+    ) -> Result<(), CSTError<'a>> {
         let start = inp.offset();
         inp.check(&self.parser)?;
-        let text = inp.slice_since(start..);
-        if !text.is_empty() {
-            if self.debug {
-                println!("(check) token {:?}", self.kind);
-            }
-            inp.state().token(self.kind.into(), text);
+
+        // HACK: chumsky is buggy and always gives us back at least one token,
+        // even when we used or_not to avoid eating a token. override what it
+        // thinks a span is.
+        if start == inp.offset() {
+            return Ok(());
         }
+
+        let span: Range<usize> = inp.span_since(start).into();
+        let text: &str = &inp.state().src[span.clone()];
+        if self.debug {
+            println!("token {:?} {:} (offset={:?})", self.kind, text, span,);
+        }
+        inp.state().token(self.kind.into(), text);
         Ok(())
     }
 }

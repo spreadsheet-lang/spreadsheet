@@ -23,6 +23,10 @@ fn main() -> Result<(), Error> {
     let errs = std::mem::take(&mut output.errors);
     print!("{output:?}");
     if errs.is_empty() {
+        assert_eq!(
+            u32::from(output.red_tree().green().text_len()),
+            input.len() as u32
+        );
         Ok(())
     } else {
         for err in errs {
@@ -30,9 +34,9 @@ fn main() -> Result<(), Error> {
             let () = span.context();
             let span = span.into_range();
             emit_error(
-                "unexpected character",
+                "unexpected token",
                 err.found()
-                    .map(|c| format!("`{c}` was not expected here"))
+                    .map(|c| format!("`{c:?}` was not expected here"))
                     .unwrap_or_else(|| "unexpected end of file".into()),
                 span,
                 &path,

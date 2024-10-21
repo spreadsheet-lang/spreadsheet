@@ -1,0 +1,31 @@
+SourceFile = CommentedStatement*
+
+CommentedStatement = '#comment'* Statement
+
+Statement =
+  AliasStmt
+| Assign
+
+AliasStmt = 'alias' '#ident' '=' Place
+
+Assign = Place '=' Expr
+
+Expr =
+  EnumExpr
+| Place
+| Literal
+
+Literal =
+  '#int'
+| '#str'
+
+EnumExpr = 'enum' Place
+
+Place =
+  '#cell'
+| AliasExpr
+| CellRange
+
+AliasExpr = '$' '#ident'
+
+CellRange = start:'#cell' ':' end:'#cell'

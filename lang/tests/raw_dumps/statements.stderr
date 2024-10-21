@@ -1,7 +1,7 @@
-error: unexpected character
+error: unexpected token
   --> tests/raw_dumps/statements.ssl:11:1
    |
 11 | type C1:C4 = $fruits
-   | ^ `t` was not expected here
+   | ^^^^ `Ident` was not expected here
    |
 Error: Parse
