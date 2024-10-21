@@ -249,7 +249,7 @@ checksum = "22ec99545bb0ed0ea7bb9b8e1e9122ea386ff8a48c0922e43f36d45ab09e0e80"
 [[package]]
 name = "cstree"
 version = "0.12.1"
-source = "git+https://github.com/jyn514/cstree?rev=6116e41806e7fce57e1cc078c19d117c3e0b5075#6116e41806e7fce57e1cc078c19d117c3e0b5075"
+source = "git+https://github.com/domenicquirl/cstree?rev=00901a8e52c1bd27c59727e11e1960be069d8f4e#00901a8e52c1bd27c59727e11e1960be069d8f4e"
 dependencies = [
  "fxhash",
  "indexmap",
@@ -376,8 +376,13 @@ dependencies = [
  "colored",
  "cstree",
  "ctrlc",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
  "serde_json",
+ "syn",
  "ui_test",
+ "ungrammar",
  "xshell",
 ]
 
@@ -518,10 +523,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "proc-macro2"
-version = "1.0.87"
+name = "prettyplease"
+version = "0.2.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3e4daa0dcf6feba26f985457cdf104d4b4256fc5a09547140f3631bb076b19a"
+checksum = "910d41a655dac3b764f1ade94821093d3610248694320cd072303a8eedcf221d"
+dependencies = [
+ "proc-macro2",
+ "syn",
+]
+
+[[package]]
+name = "proc-macro2"
+version = "1.0.88"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c3a7fc5db1e57d5a779a352c8cdb57b29aa4c40cc69c3a68a7fedc815fbf2f9"
 dependencies = [
  "unicode-ident",
 ]
@@ -733,9 +748,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.79"
+version = "2.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89132cd0bf050864e1d38dc3bbc07a0eb8e7530af26344d3d2bbbef83499f590"
+checksum = "83540f837a8afc019423a8edb95b52a8effe46957ee402287f4292fae35be021"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -853,6 +868,12 @@ dependencies = [
  "serde_json",
  "spanned",
 ]
+
+[[package]]
+name = "ungrammar"
+version = "1.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3e5df347f0bf3ec1d670aad6ca5c6a1859cd9ea61d2113125794654ccced68f"
 
 [[package]]
 name = "unicode-ident"

@@ -134,7 +134,7 @@ impl<'a> chumsky::recorder::Recorder<'a, &'a str> for RowanRecorder<'a> {
         &mut self,
         marker: chumsky::input::Marker<'a, 'parse, &'a str, Self::SaveMarker>,
     ) {
-        self.builder.revert(marker.ext_checkpoint())
+        self.builder.revert_to(marker.ext_checkpoint())
     }
 }
 

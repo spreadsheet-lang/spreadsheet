@@ -1,9 +1,9 @@
 use cargo_metadata::camino::Utf8PathBuf;
 use std::{path::PathBuf, sync::atomic::Ordering};
 use ui_test::{
-    default_any_file_filter, diagnostics::Diagnostics, error_on_output_conflict,
-    per_test_config::Comments, run_tests_generic, spanned::Spanned, status_emitter, Args,
-    CommandBuilder, Config, Format, Match,
+    custom_flags::Flag, default_any_file_filter, diagnostics::Diagnostics,
+    error_on_output_conflict, per_test_config::Comments, run_tests_generic, spanned::Spanned,
+    status_emitter, Args, CommandBuilder, Config, Format, Match,
 };
 use xshell::{cmd, Shell};
 
@@ -92,6 +92,33 @@ fn config() -> Config {
             }
         });
     config
+        .custom_comments
+        .insert("eval-cell", |parser, args, span| {
+            parser.add_custom_spanned("eval", EvalCell(args.to_string()), span)
+        });
+    config
+}
+
+#[derive(Clone, Debug)]
+struct EvalCell(String);
+impl Flag for EvalCell {
+    fn clone_inner(&self) -> Box<dyn Flag> {
+        Box::new(self.clone())
+    }
+
+    fn must_be_unique(&self) -> bool {
+        false
+    }
+
+    fn apply(
+        &self,
+        cmd: &mut std::process::Command,
+        _config: &ui_test::per_test_config::TestConfig,
+        _build_manager: &ui_test::build_manager::BuildManager,
+    ) -> Result<(), ui_test::Errored> {
+        cmd.arg("eval").arg(self.0.clone());
+        Ok(())
+    }
 }
 
 fn cargo_build(bin: &str) -> Utf8PathBuf {

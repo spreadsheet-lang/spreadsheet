@@ -2,6 +2,7 @@
 name = "lang"
 version = "0.1.0"
 edition = "2021"
+build = "codegen/main.rs"
 
 [dependencies]
 annotate-snippets = "0.11.4"
@@ -9,7 +10,7 @@ annotate-snippets = "0.11.4"
 chumsky = { git = "https://github.com/jyn514/chumsky", rev = "8baf2151f0e8e5904847056b7bde0d06a2be8dee", version = "1.0.0-alpha.7", features = ["extension"] }
 colored = "2.1.0"
 # rowan = "0.15.16"
-cstree = { git = "https://github.com/jyn514/cstree", rev = "6116e41806e7fce57e1cc078c19d117c3e0b5075", version = "0.12" }
+cstree = { git = "https://github.com/domenicquirl/cstree", rev = "00901a8e52c1bd27c59727e11e1960be069d8f4e", version = "0.12" }
 
 [dev-dependencies]
 ctrlc = "3.4.5"
@@ -21,3 +22,10 @@ cargo_metadata = "0.18.1"
 [[test]]
 name = "ui_test"
 harness = false
+
+[build-dependencies]
+prettyplease = "0.2.24"
+proc-macro2 = "1.0.88"
+quote = "1.0.37"
+syn = "2.0.82"
+ungrammar = "1.16.1"
