@@ -1,0 +1,24 @@
+SourceFile =
+  Statement*
+
+Statement =
+  Alias
+| Assign
+
+Alias = 'alias' '#ident' '=' Place
+
+Assign = Place '=' Expr
+
+Expr =
+  Enum
+| Place
+| '#int'
+| '#str'
+
+Enum = 'enum' Place
+
+Place =
+  '#cell'
+| CellRange
+
+CellRange = start:'#cell' ':' end:'#cell'
