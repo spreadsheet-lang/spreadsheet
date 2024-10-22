@@ -14,7 +14,9 @@
 .right,
 .left,
 .top,
-.bottom {
+.bottom,
+.hcenter,
+.vcenter {
     position: absolute;
 }
 
@@ -43,4 +45,10 @@
 
 #center {
     background-color: yellow;
+    overflow: clip;
+    display: block;
+}
+
+.cell {
+    position: absolute;
 }
