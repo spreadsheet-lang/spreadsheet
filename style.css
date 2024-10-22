@@ -1,0 +1,54 @@
+.right {
+    right: 0px;
+}
+
+.right,
+.left {
+    width: 20px;
+}
+
+.left {
+    left: 0px;
+}
+
+.right,
+.left,
+.top,
+.bottom,
+.hcenter,
+.vcenter {
+    position: absolute;
+}
+
+.top {
+    top: 0px
+}
+
+.bottom {
+    bottom: 0px;
+}
+
+.top,
+.bottom {
+    height: 20px;
+}
+
+.vcenter {
+    top: 20px;
+    bottom: 20px;
+}
+
+.hcenter {
+    left: 20px;
+    right: 20px;
+}
+
+#center {
+    background-color: yellow;
+    overflow: clip;
+    display: block;
+}
+
+.cell {
+    position: absolute;
+}
