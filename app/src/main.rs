@@ -63,23 +63,29 @@ fn Home() -> Element {
     }
 }
 
+const DISPLAY_ROWS: u128 = 30;
+const DISPLAY_COLS: u128 = 10;
+
 #[component]
 fn Grid(col: u128, row: NonZeroU128) -> Element {
-    let style: String = (0..100)
+    let style: String = (0..DISPLAY_COLS)
         .map(|i| {
             let xpos = i * 100;
+            let j = col + i;
+            format!(".col{j} {{ left: {xpos}px }}")
+        })
+        .chain((0..DISPLAY_ROWS).map(|i| {
             let ypos = i * 20;
             let i = row.get() + i;
-            let j = col + i;
-            format!(".row{i} {{ top: {ypos}px }} .col{j} {{ left: {xpos}px }}")
-        })
+            format!(".row{i} {{ top: {ypos}px }}")
+        }))
         .collect();
     rsx! {
         style {
             {style}
         }
-        for i in 0..100 {
-            for j in 0..100 {
+        for i in 0..DISPLAY_ROWS {
+            for j in 0..DISPLAY_COLS {
                 Cell {
                     row: NonZeroU128::new(row.get() + i).unwrap(),
                     col: col + j,
