@@ -31,15 +31,15 @@ fn Home() -> Element {
 
     let col_name = name_from_index(*col.read());
 
-    let left = if *col.read() == 0 {
+    let left = if let Some(next_col) = col.read().checked_sub(1) {
+        rsx! {button { class: "left vcenter", onclick: move |_| col.set(next_col), "<" }}
+    } else {
         rsx! {button { class: "left vcenter", disabled: true, "<" }}
-    } else {
-        rsx! {button { class: "left vcenter", onclick: move |_| col -= 1, "<" }}
     };
-    let up = if *row.read() == 0 {
-        rsx! {button { class: "top hcenter", disabled: true, "^" }}
+    let up = if let Some(next_row) = row.read().checked_sub(1) {
+        rsx! {button { class: "top hcenter", onclick: move |_| row.set(next_row), "^" }}
     } else {
-        rsx! {button { class: "top hcenter", onclick: move |_| row -= 1, "^" }}
+        rsx! {button { class: "top hcenter", disabled: true, "^" }}
     };
     rsx! {
         style { {STYLE} }
