@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use std::num::NonZeroU128;
+
 use dioxus::prelude::*;
 use dioxus_logger::tracing::{info, Level};
 
@@ -26,7 +28,7 @@ const STYLE: &str = include_str!("../assets/style.css");
 
 #[component]
 fn Home() -> Element {
-    let mut row = use_signal(|| 0_u128);
+    let mut row = use_signal(|| NonZeroU128::MIN);
     let mut col = use_signal(|| 0);
 
     let col_name = name_from_index(*col.read());
@@ -36,7 +38,7 @@ fn Home() -> Element {
     } else {
         rsx! {button { class: "left vcenter", disabled: true, "<" }}
     };
-    let up = if let Some(next_row) = row.read().checked_sub(1) {
+    let up = if let Some(next_row) = row.read().get().checked_sub(1).and_then(NonZeroU128::new) {
         rsx! {button { class: "top hcenter", onclick: move |_| row.set(next_row), "^" }}
     } else {
         rsx! {button { class: "top hcenter", disabled: true, "^" }}
@@ -54,17 +56,20 @@ fn Home() -> Element {
         {left}
         button { class: "right vcenter", onclick: move |_| col += 1, ">" }
         {up}
-        button { class: "bottom hcenter", onclick: move |_| row += 1, "v" }
+        button { class: "bottom hcenter", onclick: move |_| {
+            let next_row = row.read().checked_add(1).unwrap();
+            row.set(next_row)
+        }, "v" }
     }
 }
 
 #[component]
-fn Grid(col: u128, row: u128) -> Element {
+fn Grid(col: u128, row: NonZeroU128) -> Element {
     let style: String = (0..100)
         .map(|i| {
             let xpos = i * 100;
             let ypos = i * 20;
-            let i = row + i;
+            let i = row.get() + i;
             let j = col + i;
             format!(".row{i} {{ top: {ypos}px }} .col{j} {{ left: {xpos}px }}")
         })
@@ -76,7 +81,7 @@ fn Grid(col: u128, row: u128) -> Element {
         for i in 0..100 {
             for j in 0..100 {
                 Cell {
-                    row: row + i,
+                    row: NonZeroU128::new(row.get() + i).unwrap(),
                     col: col + j,
                 }
             }
@@ -84,7 +89,7 @@ fn Grid(col: u128, row: u128) -> Element {
     }
 }
 #[component]
-fn Cell(col: u128, row: u128) -> Element {
+fn Cell(col: u128, row: NonZeroU128) -> Element {
     rsx! { input {
         class: "row{row} col{col} cell",
         value: "{name_from_index(col)}{row}",
