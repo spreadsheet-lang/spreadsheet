@@ -47,12 +47,48 @@ fn Home() -> Element {
         div { class: "right top" }
         div { class: "left bottom" }
         div { class: "right bottom" }
-        div { id: "center" }
+        div { class: "hcenter vcenter", id: "center", Grid {
+            col: *col.read(),
+            row: *row.read(),
+        } }
         {left}
         button { class: "right vcenter", onclick: move |_| col += 1, ">" }
         {up}
         button { class: "bottom hcenter", onclick: move |_| row += 1, "v" }
     }
+}
+
+#[component]
+fn Grid(col: u128, row: u128) -> Element {
+    let style: String = (0..100)
+        .map(|i| {
+            let xpos = i * 100;
+            let ypos = i * 20;
+            let i = row + i;
+            let j = col + i;
+            format!(".row{i} {{ top: {ypos}px }} .col{j} {{ left: {xpos}px }}")
+        })
+        .collect();
+    rsx! {
+        style {
+            {style}
+        }
+        for i in 0..100 {
+            for j in 0..100 {
+                Cell {
+                    row: row + i,
+                    col: col + j,
+                }
+            }
+        }
+    }
+}
+#[component]
+fn Cell(col: u128, row: u128) -> Element {
+    rsx! { input {
+        class: "row{row} col{col} cell",
+        value: "{name_from_index(col)}{row}",
+    }}
 }
 
 fn name_from_index(mut col: u128) -> String {
