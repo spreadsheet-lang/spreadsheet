@@ -97,6 +97,7 @@ fn Grid(col: Col, row: Row) -> Element {
         }
     }
 }
+
 #[component]
 fn Cell(col: Col, row: Row) -> Element {
     rsx! { input {
