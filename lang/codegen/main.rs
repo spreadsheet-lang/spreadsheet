@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -27,7 +27,7 @@ fn main() {
 /// I really wish this were part of `ungrammar` itself...
 #[derive(Default, Debug)]
 struct AstSrc {
-    // tokens: Vec<String>,
+    tokens: HashSet<String>,
     nodes: Vec<AstItem>,
 }
 
@@ -123,6 +123,7 @@ impl GrammarWalker {
                     Some(s) => s.into(),
                     None => to_lower_snake_case(kind),
                 };
+                self.ast.tokens.insert(kind.to_owned());
                 Field::Token(name)
             }
             Rule::Rep(ref inner) => {
@@ -155,6 +156,7 @@ impl GrammarWalker {
                         Rule::Token(n) => {
                             let ty = &grammar[n].name;
                             if let Some(data) = ty.strip_prefix('#') {
+                                self.ast.tokens.insert(data.to_owned());
                                 variants.push(Variant::Token(to_pascal_case(data)));
                             }
                         }
@@ -180,16 +182,23 @@ impl GrammarWalker {
 }
 
 fn generate(ast: AstSrc) -> TokenStream {
-    let mut acc = quote! { use ::cstree::green::GreenNode; };
+    let mut acc = quote! {
+        use crate::parser::{SyntaxKind, SyntaxNode};
+        use ::cstree::green::GreenNode;
+    };
     for node in ast.nodes {
         let name = format_ident!("{}", node.name);
+        let kind = format_ident!("{}", to_upper_snake_case(&node.name));
         let item = match node.kind {
             AstItemKind::Struct(fields) => {
                 let fields = fields.iter().map(|f| match f {
-                    Field::Token(name) => {
-                        let name = format_ident!("{name}");
+                    Field::Token(_name) => {
+                        // let ty = format_ident!("{}", to_pascal_case(name));
+                        // let name = format_ident!("{name}");
                         quote! {
-                            #name: GreenNode,
+                            // fn #name(&self) -> Option<#ty> {
+                            //     self.syntax.children().find_map()
+                            // }
                         }
                     }
                     Field::Node {
@@ -199,44 +208,85 @@ fn generate(ast: AstSrc) -> TokenStream {
                     } => {
                         let name = format_ident!("{name}");
                         let ty = format_ident!("{ty}");
-                        let ty = match cardinality {
-                            Many => quote! { Vec<#ty> },
-                            Optional => quote! { Option<#ty> },
+                        let (ret_ty, mapper) = match cardinality {
+                            Many => (quote! { Vec<#ty> }, quote! { .collect() }),
+                            Optional => (quote! { Option<#ty> }, quote! { .next() }),
                         };
                         quote! {
-                           #name: #ty,
+                           // #name: #ty,
+                           fn #name(&self) -> #ret_ty {
+                               self.syntax.children().filter_map(|n| #ty::cast(n.clone())) #mapper
+                          }
                         }
                     }
                 });
                 quote! {
                    struct #name {
+                       // #(#fields)*
+                       syntax: SyntaxNode,
+                   }
+                   impl #name {
+                       fn can_cast(kind: SyntaxKind) -> bool {
+                           kind == SyntaxKind::#kind
+                       }
+                       fn cast(syntax: SyntaxNode) -> Option<Self> {
+                           if Self::can_cast(syntax.kind()) { Some(Self { syntax }) } else { None }
+                       }
                        #(#fields)*
                    }
                 }
             }
             AstItemKind::Enum(variants) => {
-                let variants = variants.iter().map(|v| match v {
+                let (variants, names): (Vec<_>, Vec<_>) = variants.iter().map(|v| match v {
                     Variant::Node(name) => {
+                        let kind = format_ident!("{}", to_upper_snake_case(name));
                         let name = format_ident!("{name}");
-                        quote! {
+                        let variant = quote! {
                             #name(#name)
-                        }
+                        };
+                        (variant, (name, kind))
                     }
                     Variant::Token(name) => {
+                        let kind = format_ident!("{}", to_upper_snake_case(name));
+                        let ty = format_ident!("{}", to_pascal_case(name));
                         let name = format_ident!("{name}");
-                        quote! {
-                            #name(GreenNode)
-                        }
+                        let variant = quote! {
+                            #name(#ty)
+                        };
+                        (variant, (name, kind))
                     }
-                });
+                }).unzip();
+                let (names, kinds): (Vec<_>, Vec<_>) = names.into_iter().unzip();
                 quote! {
                     enum #name {
                         #(#variants),*
+                    }
+                    impl #name {
+                        fn can_cast(kind: SyntaxKind) -> bool {
+                            matches!(kind, #(SyntaxKind::#kinds)|*)
+                        }
+                        fn cast(syntax: SyntaxNode) -> Option<Self> {
+                            let res = match syntax.kind() {
+                                #(
+                                    SyntaxKind::#kinds => Self::#names(#names { syntax }),
+                                )*
+                                _ => return None,
+                            };
+                            Some(res)
+                        }
+                        // #(#fields)*
                     }
                 }
             }
         };
         acc.extend(item);
+    }
+
+    for token in ast.tokens {
+        let token = format_ident!("{}", to_pascal_case(&token));
+        acc.extend(quote! {
+            struct #token { syntax: SyntaxNode }
+        });
     }
     acc
 }
@@ -256,6 +306,20 @@ fn to_lower_snake_case(s: &str) -> String {
         prev = true;
 
         buf.push(c.to_ascii_lowercase());
+    }
+    buf
+}
+
+fn to_upper_snake_case(s: &str) -> String {
+    let mut buf = String::with_capacity(s.len());
+    let mut prev = false;
+    for c in s.chars() {
+        if c.is_ascii_uppercase() && prev {
+            buf.push('_')
+        }
+        prev = true;
+
+        buf.push(c.to_ascii_uppercase());
     }
     buf
 }

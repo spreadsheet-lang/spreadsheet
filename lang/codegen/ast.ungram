@@ -1,21 +1,21 @@
-SourceFile =
+Root =
   Statement*
 
 Statement =
-  Alias
+  AliasStmt
 | Assign
 
-Alias = 'alias' '#ident' '=' Place
+AliasStmt = 'alias' '#ident' '=' Place
 
 Assign = Place '=' Expr
 
 Expr =
-  Enum
+  EnumExpr
 | Place
 | '#int'
 | '#str'
 
-Enum = 'enum' Place
+EnumExpr = 'enum' Place
 
 Place =
   '#cell'

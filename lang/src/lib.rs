@@ -1,4 +1,5 @@
-include!(concat!(env!("OUT_DIR"), "/ast.rs"));
+mod ast;
 mod grammar;
 mod parser;
+
 pub use parser::parse;
