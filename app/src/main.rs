@@ -1,10 +1,8 @@
 #![allow(non_snake_case)]
 
-use cell_index::{Col, Row};
+use lang::cell_index::{Col, Row};
 use dioxus::prelude::*;
 use dioxus_logger::tracing::{info, Level};
-
-mod cell_index;
 
 #[derive(Clone, Routable, Debug, PartialEq)]
 enum Route {
